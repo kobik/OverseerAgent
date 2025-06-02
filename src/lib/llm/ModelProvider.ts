@@ -3,11 +3,16 @@
  * Defines the interface that all LLM providers must implement
  */
 
+import { Profile } from "../../services/overseerrService.js";
+
 export interface MediaIntent {
   title: string;
   mediaType: "movie" | "tv";
   seasons?: "all" | number[];
-  profile?: "heb" | null;
+  profile?: {
+    id: number;
+    name: string;
+  };
 }
 
 class ModelProvider {
@@ -26,7 +31,7 @@ class ModelProvider {
    * @returns {Promise<MediaIntent>} - Parsed JSON response containing media intent
    * @throws {Error} - If the API call fails or response cannot be parsed
    */
-  async generateResponse(_userPrompt: string): Promise<MediaIntent> {
+  async generateResponse(_userPrompt: string, radarrProfiles: Profile[], sonarrProfiles: Profile[]): Promise<MediaIntent> {
     throw new Error("generateResponse method must be implemented by subclass");
   }
 
@@ -35,23 +40,44 @@ class ModelProvider {
    * Each provider can customize this for optimal performance
    * @returns {string} - The system prompt
    */
-  getSystemPrompt(): string {
+  getSystemPrompt(radarrProfiles: Profile[], sonarrProfiles: Profile[]): string {
     return `You're an assistant that extracts media request information from user prompts.
+
+You have the following movie profiles available:
+${radarrProfiles.map(p => `- ${p.name} (${p.id})`).join("\n")}
+
+You have the following TV show profiles available:
+${sonarrProfiles.map(p => `- ${p.name} (${p.id})`).join("\n")}
 
 Analyze the prompt and return a JSON object with the following structure:
 {
   "title": "exact title of the movie/show",
   "mediaType": "movie" or "tv",
   "seasons": "all" or [1,2,3] (array of season numbers, only for TV shows),
-  "profile": "heb" or null (if Hebrew content is requested)
+  "profile": the requested profile ONLY if the user explicitly requests a specific profile and matching only existing profiles according to the profiles above and media type. if you haven't found a matching profile, return null.
 }
 
 Examples:
 - "I want to watch Breaking Bad season 1" → {"title": "Breaking Bad", "mediaType": "tv", "seasons": [1]}
 - "Add all seasons of Friends" → {"title": "Friends", "mediaType": "tv", "seasons": "all"}
-- "I need the Hebrew movie Lebanon" → {"title": "Lebanon", "mediaType": "movie", "profile": "heb"}`;
-  }
+- "My wife wanna watch Grey's Anatomy" → {"title": "Grey's Anatomy", "mediaType": "tv", "seasons": "first"}
+- "Add Grey's Anatomy" → {"title": "Grey's Anatomy", "mediaType": "tv", "seasons": "first"}
+- "id like to watch The Witcher tv show in hd → {"title": "The Witcher", "mediaType": "tv", "seasons": "first", "profile": {id: 1, name: "hd"}}
+- "Let's watch the first season of SpongeBob" → {"title": "SpongeBob", "mediaType": "tv", "seasons": "first"}
+- "Let's watch the next season of SpongeBob" → {"title": "SpongeBob", "mediaType": "tv", "seasons": "next"}
+- "Let's watch the latest season of SpongeBob" → {"title": "SpongeBob", "mediaType": "tv", "seasons": "last"}
+- "Watch the newest season of The Simpsons" → {"title": "The Simpsons", "mediaType": "tv", "seasons": "last"}
+- "I need the Hebrew movie Lebanon" → {"title": "Lebanon", "mediaType": "movie", "profile": {id: 1, name: "Heb"}}
+- "I need the Hebrew Dubbed Kung Fu Panda 2" → {"title": "Kung Fu Panda 2", "mediaType": "movie", "profile": {id: 1, name: "HebDub"}}
+- "I want to watch Breaking Bad season 1 in 4k" → {"title": "Breaking Bad", "mediaType": "tv", "seasons": [1], "profile": {id: 1, name: "UltraHD"}}
+- "I want to watch Breaking Bad season 1 in Ultra HD" → {"title": "Breaking Bad", "mediaType": "tv", "seasons": [1], "profile": {id: 1, name: "UltraHD"}}
+- "Watch seasons 1-3 of The Simpsons" → {"title": "The Simpsons", "mediaType": "tv", "seasons": [1,2,3]}
 
+IMPORTANT: For requests asking for the "latest", "newest", or "last" season, use "last" for seasons - this indicates the system should fetch the most recent season available.
+For requests asking for the "first" season, use "first" for seasons.
+For requests asking for a specific season, use the season number.
+  `}
+  
   /**
    * Validate that the response is a valid JSON object with expected structure
    * @param {string} responseText - Raw response text from LLM
@@ -80,14 +106,14 @@ Examples:
         throw new Error("Seasons should not be specified for mediaType 'movie'")
     }
 
-    if (parsed.seasons && parsed.mediaType === "tv" && !(parsed.seasons === "all" || (Array.isArray(parsed.seasons) && parsed.seasons.every((s: number) => typeof s === "number")))) {
+    if (parsed.seasons && parsed.mediaType === "tv" && !(typeof parsed.seasons === "string" && ["all", "first", "last", "next"].includes(parsed.seasons)) && !(Array.isArray(parsed.seasons) && parsed.seasons.every((s: number) => typeof s === "number"))) {
         throw new Error("Invalid seasons format for mediaType 'tv'. Should be 'all' or an array of numbers.");
     }
 
-    // Ensure profile is valid if present
-    if (parsed.profile && parsed.profile !== "heb") {
-        throw new Error("Invalid profile value. Should be 'heb' or null/undefined.");
-    }
+    // TODO: validate the profile matches the media type profiles
+    // if (parsed.profile) {
+    //     throw new Error("Invalid profile value. Should be 'heb' or null/undefined.");
+    // }
 
     // After validation, we know the parsed object conforms to MediaIntent
     return parsed;

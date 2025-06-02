@@ -14,15 +14,15 @@ class GeminiProvider extends ModelProvider {
       throw new Error("Gemini API key is required.");
     }
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-05-20" }); // Updated model name
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); // Updated model name
   }
 
   /**
    * Get Gemini-optimized system prompt for media intent extraction
    * @returns {string} - The system prompt optimized for Gemini
    */
-  getSystemPrompt(): string {
-    const basePrompt = super.getSystemPrompt();
+  getSystemPrompt(radarrProfiles: any, sonarrProfiles: any): string {
+    const basePrompt = super.getSystemPrompt(radarrProfiles, sonarrProfiles);
     // Modify the introductory line from the base prompt and append Gemini-specific instructions.
     const modifiedBasePrompt = basePrompt.replace(
       "You're an assistant that extracts media request information from user prompts.",
@@ -37,9 +37,9 @@ class GeminiProvider extends ModelProvider {
    * @returns {Promise<MediaIntent>} - Parsed JSON response containing media intent
    * @throws {Error} - If the API call fails or response cannot be parsed
    */
-  async generateResponse(userPrompt: string): Promise<MediaIntent> {
+  async generateResponse(userPrompt: string, radarrProfiles: any, sonarrProfiles: any): Promise<MediaIntent> {
     try {
-      const systemPromptText = this.getSystemPrompt();
+      const systemPromptText = this.getSystemPrompt(radarrProfiles, sonarrProfiles);
 
       console.log("🔮 Calling Gemini API...");
       

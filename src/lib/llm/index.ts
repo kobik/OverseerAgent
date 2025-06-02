@@ -1,6 +1,7 @@
 import GeminiProvider from './GeminiProvider.js';
 import AnthropicProvider from './AnthropicProvider.js';
 import ModelProvider, { MediaIntent } from './ModelProvider.js';
+import { Profile } from '../../services/overseerrService.js';
 
 /**
  * Factory function to create the appropriate LLM provider based on configuration
@@ -37,7 +38,7 @@ export function createProvider(provider: string, apiKey: string): ModelProvider 
  * @returns {Promise<MediaIntent>} - Parsed JSON response containing media intent
  * @throws {Error} - If the LLM call fails or configuration is invalid
  */
-export async function invokeChatModel(userPrompt: string): Promise<MediaIntent> {
+export async function invokeChatModel(userPrompt: string, radarrProfiles: Profile[], sonarrProfiles: Profile[]): Promise<MediaIntent> {
   const providerName = process.env.LLM_PROVIDER?.toLowerCase();
   let apiKey: string | undefined;
 
@@ -62,7 +63,7 @@ export async function invokeChatModel(userPrompt: string): Promise<MediaIntent> 
   const providerInstance = createProvider(providerName, apiKey);
   
   try {
-    return await providerInstance.generateResponse(userPrompt);
+    return await providerInstance.generateResponse(userPrompt, radarrProfiles, sonarrProfiles);
   } catch (err: unknown) {
     console.error(`❌ Error in invokeChatModel with ${providerName} provider:`, err instanceof Error ? err.message : String(err));
     // Re-throw the original error to preserve its type and details for upstream handlers

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { MediaIntent, extractMediaIntent } from '../services/mediaIntentService.js';
-import { searchOverseerr, requestMedia } from '../services/overseerrService.js';
+import { searchOverseerr, requestMedia, getRadarrProfiles, getSonarrProfiles, fetchMediaInfo } from '../services/overseerrService.js';
 
 const router = new Hono();
 
@@ -12,49 +12,42 @@ router.post("/prompt", async (c) => {
       return c.json({ error: "Prompt is required" }, 400);
     }
 
-    const intent: MediaIntent = await extractMediaIntent(prompt);
+    const radarrProfiles = await getRadarrProfiles();
+    const sonarrProfiles = await getSonarrProfiles();
+
+    let intent: MediaIntent = await extractMediaIntent(prompt, radarrProfiles, sonarrProfiles);
     console.log("🎯 Extracted:", intent);
 
-    const result = await searchOverseerr(intent.title);
-    if (!result) {
+    let searchResults = await searchOverseerr(intent.title);
+    if (!searchResults) {
       return c.json({ error: "Media not found" }, 404);
     }
 
-    if (result.mediaInfo && result.mediaInfo.status) {
-      const status = result.mediaInfo.status;
-      // Status 1: Pending Approval, Status 4: Partially Available
-      // Other statuses (e.g., 2:Processing, 3:Available, 5:Unavailable) mean we don't need to request.
-      if (status !== 1 && status !== 4) { 
-        console.log("✅ Media already available/requested or processing");
-        return c.json({
-          status: "already_processed", // Generalized status
-          message: "This media is already processing, available, or has been requested.",
-        });
-      }
-
-      // If partially available, check if requested seasons are among the available ones
-      if (status === 4 && intent.mediaType === "tv" && Array.isArray(intent.seasons)) {
-        const availableSeasons = (result.mediaInfo.seasons || [])
-          .filter(s => s.status && s.status !== 1) // status 1 is pending, others are various states of available/processing
-          .map(s => s.seasonNumber);
-        
-        const missingSeasons = intent.seasons?.filter(
-          season => !availableSeasons.includes(season)
-        ) || [];
-
-        if (missingSeasons.length === 0) {
-          console.log("✅ All requested seasons are already available/requested or processing");
-          return c.json({
-            status: "already_processed",
-            message: "All requested seasons are already available, processing, or requested.",
-          });
-        }
-        // Update intent to only request missing seasons
-        intent.seasons = missingSeasons;
-      }
+    const status = searchResults.mediaInfo?.status;
+    if (status === 5) { 
+      console.log("✅ Media already available/requested or processing");
+      return c.json({
+        status: "already_processed", // Generalized status
+        message: "This media is already processing, available, or has been requested.",
+      });
     }
 
-    const requested = await requestMedia(intent, result.id);
+    // If partially available, check if requested seasons are among the available ones
+    if (intent.mediaType === "tv") {
+      const requiredSeasons = getRequiredSeasons(intent, searchResults.mediaInfo?.seasons || []);
+
+      if (requiredSeasons.length === 0) {
+        console.log("✅ All requested seasons are already available/requested or processing");
+        return c.json({
+          status: "already_processed",
+          message: "All requested seasons are already available, processing, or requested.",
+        });
+      }
+      // Update intent to only request missing seasons
+      intent.seasons = requiredSeasons;
+    }
+
+    const requested = await requestMedia(intent, searchResults.id);
     console.log("📥 Media requested successfully:", requested);
     return c.json({ status: "success", intent });
   } catch (err: unknown) {
@@ -70,5 +63,26 @@ router.post("/prompt", async (c) => {
     return c.json({ error: "Server failed to process prompt" }, 500);
   }
 });
+
+function getRequiredSeasons(intent: MediaIntent, seasons: { seasonNumber: number; status?: number }[]): number[] {
+  if (intent.seasons === 'all') {
+    return seasons
+      .map(s => s.seasonNumber)
+      .filter(s => s > 0)
+      .sort((a, b) => a - b);
+  } else if (intent.seasons === 'first') {
+    return [1];
+  } else if (intent.seasons === 'last') {
+    return [seasons.at(-1)?.seasonNumber || 1];
+  } else if (intent.seasons === 'next') {
+    return [seasons
+      .sort((a, b) => a.seasonNumber - b.seasonNumber)
+      .find(s => s.status !== 5)
+      ?.seasonNumber || 1];
+  } else if (Array.isArray(intent.seasons)) {
+    return intent.seasons;
+  }
+  return [1];
+}
 
 export default router; 

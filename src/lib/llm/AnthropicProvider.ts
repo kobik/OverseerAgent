@@ -23,8 +23,8 @@ class AnthropicProvider extends ModelProvider {
    * This prompt guides the model to use the specified tool for JSON output.
    * @returns {string} - The system prompt optimized for Anthropic Claude.
    */
-  getSystemPrompt(): string {
-    const basePrompt = super.getSystemPrompt(); // Gets the JSON structure and examples
+  getSystemPrompt(radarrProfiles: any, sonarrProfiles: any): string {
+    const basePrompt = super.getSystemPrompt(radarrProfiles, sonarrProfiles); // Gets the JSON structure and examples
     return `You are a media request assistant. Your task is to analyze the user's request and extract specific details about the media they want.
 You MUST use the "media_intent_extractor" tool to provide these details in a structured JSON format.
 Do not respond with any text outside of the tool call. Strictly adhere to the tool's input schema.
@@ -38,8 +38,8 @@ ${basePrompt}`; // Append JSON structure and examples for clarity
    * @returns {Promise<MediaIntent>} - Parsed JSON response containing media intent.
    * @throws {Error} - If the API call fails or response cannot be parsed.
    */
-  async generateResponse(userPrompt: string): Promise<MediaIntent> {
-    const systemPrompt = this.getSystemPrompt();
+  async generateResponse(userPrompt: string, radarrProfiles: any, sonarrProfiles: any): Promise<MediaIntent> {
+    const systemPrompt = this.getSystemPrompt(radarrProfiles, sonarrProfiles);
 
     const tools: Tool[] = [{
       name: "media_intent_extractor",
@@ -65,7 +65,7 @@ ${basePrompt}`; // Append JSON structure and examples for clarity
           },
           profile: {
             type: ["string", "null"],
-            enum: ["heb", null],
+            // enum: ["heb", null],
             description: "The content profile. 'heb' if Hebrew language content is requested, otherwise null or omit."
           }
         },
