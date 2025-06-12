@@ -120,7 +120,7 @@ ${basePrompt}`; // Append JSON structure and examples for clarity
       if (err instanceof Anthropic.APIError) {
         let userMessage = `Anthropic API Error: ${err.status} - ${err.name}.`;
         if (err.status === 401) {
-          userMessage = "Invalid Anthropic API key. Please check your ANTHROPIC_API_KEY environment variable.";
+          userMessage = "Invalid Anthropic API key. Please check your LLM_API_KEY environment variable.";
         } else if (err.status === 403) {
           userMessage = "Anthropic API key does not have permission for the requested action or model.";
         } else if (err.status === 429) {

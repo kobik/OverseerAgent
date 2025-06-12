@@ -72,7 +72,7 @@ class GeminiProvider extends ModelProvider {
       // Handle specific Gemini API errors
       if (err instanceof Error) {
         if (err.message.includes('API_KEY_INVALID')) {
-          throw new Error("Invalid Gemini API key. Please check your GEMINI_API_KEY environment variable.");
+          throw new Error("Invalid Gemini API key. Please check your LLM_API_KEY environment variable.");
         } else if (err.message.includes('QUOTA_EXCEEDED')) {
           throw new Error("Gemini API quota exceeded. Please check your usage limits.");
         } else if (err.message.includes('RATE_LIMIT_EXCEEDED')) {

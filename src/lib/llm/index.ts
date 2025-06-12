@@ -46,17 +46,9 @@ export async function invokeChatModel(userPrompt: string, radarrProfiles: Profil
     throw new Error("LLM_PROVIDER environment variable is not set or is empty.");
   }
 
-  // Get the appropriate API key based on providerName
-  // LLM_PROVIDER and corresponding API key are validated at startup by validateLLMConfig in index.ts
-  if (providerName === 'gemini') {
-    apiKey = process.env.GEMINI_API_KEY;
-  } else if (providerName === 'anthropic') {
-    apiKey = process.env.ANTHROPIC_API_KEY;
-  }
-  // No default case needed here as startup validation ensures providerName is valid and key exists.
+  apiKey = process.env.LLM_API_KEY;
 
   if (!apiKey) {
-    // This check is technically redundant if validateLLMConfig has run, but good for safety.
     throw new Error(`API key for provider ${providerName} is not defined. Please check your environment variables.`);
   }
 
@@ -89,29 +81,9 @@ export function validateLLMConfig(): void {
     throw new Error(`❌ Unsupported LLM provider: ${provider}. Supported providers: ${supportedProviders.join(', ')}.`);
   }
 
-  switch (lowerCaseProvider) {
-    case 'gemini':
-      if (!process.env.GEMINI_API_KEY) {
-        throw new Error("❌ GEMINI_API_KEY environment variable is required when using Gemini provider.");
-      }
-      console.log("✅ LLM configuration validated: Gemini provider");
-      break;
-    case 'anthropic':
-      if (!process.env.ANTHROPIC_API_KEY) {
-        throw new Error("❌ ANTHROPIC_API_KEY environment variable is required when using Anthropic provider.");
-      }
-      console.log("✅ LLM configuration validated: Anthropic provider");
-      break;
-    // No default needed here as we check against supportedProviders earlier
+  if (!process.env.LLM_API_KEY) {
+    throw new Error("❌ LLM_API_KEY environment variable is required when using Gemini provider.");
   }
-}
 
-// Optional: If you want to keep the default export structure for some reason,
-// otherwise, named exports are generally preferred in TypeScript.
-/* 
-export default {
-  invokeChatModel,
-  validateLLMConfig,
-  createProvider
-}; 
-*/ 
+  console.log(`✅ LLM configuration validated: ${provider} provider`);
+}
